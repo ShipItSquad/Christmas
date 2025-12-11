@@ -1,6 +1,5 @@
-
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars, Cloud, Sparkles, Float, Environment, Text3D } from '@react-three/drei';
+import { OrbitControls, Stars, Cloud, Sparkles, Float, Environment, Text3D, RoundedBox, MeshDistortMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { useMemo, useRef, useState } from 'react';
 
@@ -59,8 +58,6 @@ function Snow({ count = 1000 }) {
         </points>
     );
 }
-
-import { RoundedBox } from '@react-three/drei';
 
 function Tree({ position, scale = 1 }: { position: [number, number, number], scale?: number }) {
     return (
@@ -125,7 +122,7 @@ function House({ position, rotation = [0, 0, 0], color = "#e57373" }: { position
     );
 }
 
-function SimplePresent({ position, color }: { position: [number, number, number], color: string }) {
+function SimplePresent({ position, color, ribbonColor = "#ffd700" }: { position: [number, number, number], color: string, ribbonColor?: string }) {
     return (
         <group position={position}>
             <group position={[0, 0.25, 0]}>
@@ -136,11 +133,11 @@ function SimplePresent({ position, color }: { position: [number, number, number]
             {/* Ribbons */}
             <mesh position={[0, 0.25, 0]}>
                 <boxGeometry args={[0.52, 0.1, 0.52]} />
-                <meshStandardMaterial color="#ffd700" />
+                <meshStandardMaterial color={ribbonColor} />
             </mesh>
             <mesh position={[0, 0.25, 0]}>
                 <boxGeometry args={[0.1, 0.52, 0.52]} />
-                <meshStandardMaterial color="#ffd700" />
+                <meshStandardMaterial color={ribbonColor} />
             </mesh>
         </group>
     )
@@ -225,24 +222,62 @@ function Ghost() {
     useFrame((state, delta) => {
         if (!group.current) return;
 
-        // Move towards target
-        const currentPos = group.current.position;
-        const dir = new THREE.Vector3().subVectors(target, currentPos);
+        // Project mouse to a plane in world space (approximate)
+        const mouseWorld = new THREE.Vector3(state.pointer.x, state.pointer.y, 0.5);
+        mouseWorld.unproject(state.camera);
+        // Approximate intersection with Y plane of ghost height (approx ~1-3)
+        // Similar logic to MouseLight but we need the world coord
+        const dirToMouse = mouseWorld.clone().sub(state.camera.position).normalize();
+        const t = (group.current.position.y - state.camera.position.y) / dirToMouse.y;
+        let mousePos = state.camera.position.clone().add(dirToMouse.multiplyScalar(t));
 
-        if (dir.length() < 0.5) {
-            // Pick new random target
-            target.set(
-                (Math.random() - 0.5) * 15,
-                1 + Math.random() * 2,
-                (Math.random() - 0.5) * 15
-            );
+        // Use a default mouse pos far away if projection fails or t is invalid
+        if (Math.abs(dirToMouse.y) < 0.01 || t < 0 || t > 50) {
+            mousePos = new THREE.Vector3(1000, 1000, 1000);
         }
 
-        dir.normalize().multiplyScalar(delta * 2); // Speed
-        group.current.position.add(dir);
+        const currentPos = group.current.position;
+        const distToMouse = currentPos.distanceTo(mousePos);
 
-        // Look at target
-        group.current.lookAt(target);
+        // Flee radius
+        const fleeRadius = 4;
+
+        let moveDir = new THREE.Vector3();
+
+        if (distToMouse < fleeRadius) {
+            // Run away from mouse!
+            moveDir.subVectors(currentPos, mousePos).normalize();
+            // Override target so we don't snap back immediately
+            target.copy(currentPos).add(moveDir.multiplyScalar(5));
+        } else {
+            // Wander logic
+            moveDir.subVectors(target, currentPos);
+
+            if (moveDir.length() < 0.5) {
+                // Pick new random target
+                target.set(
+                    (Math.random() - 0.5) * 15,
+                    1 + Math.random() * 2,
+                    (Math.random() - 0.5) * 15
+                );
+            }
+            moveDir.normalize();
+        }
+
+        // Apply movement
+        const speed = distToMouse < fleeRadius ? 6 : 2; // Run faster if scared
+        group.current.position.add(moveDir.multiplyScalar(delta * speed));
+
+        // Constrain to bounds (soft)
+        if (group.current.position.x > 20) group.current.position.x = 20;
+        if (group.current.position.x < -20) group.current.position.x = -20;
+        if (group.current.position.z > 20) group.current.position.z = 20;
+        if (group.current.position.z < -20) group.current.position.z = -20;
+
+
+        // Look at where we are going
+        const lookTarget = group.current.position.clone().add(moveDir);
+        group.current.lookAt(lookTarget);
 
         // Floatiness (sine wave on Y)
         group.current.position.y += Math.sin(state.clock.elapsedTime * 2 + currentPos.x) * 0.005;
@@ -251,12 +286,24 @@ function Ghost() {
     return (
         <group ref={group}>
             {/* Body */}
-            <mesh position={[0, 0, 0]} castShadow>
-                <capsuleGeometry args={[0.3, 0.8, 4, 8]} />
-                <meshStandardMaterial color="#b3e5fc" transparent opacity={0.6} roughness={0.1} metalness={0.1} />
+            <mesh position={[0, 0, 0]} castShadow receiveShadow>
+                <capsuleGeometry args={[0.3, 0.8, 4, 16]} />
+                {/* 
+                MeshDistortMaterial adds vertex displacement noise.
+                We make it react to light by giving it some roughness and transmission 
+                looks cool with lights behind/near it.
+             */}
+                <MeshDistortMaterial
+                    color="#ffffff"
+                    roughness={0.2}
+                    metalness={0.1}
+                    distort={0.4} // Strength of distortion
+                    speed={2} // Speed of distortion
+                    radius={1}
+                />
             </mesh>
 
-            {/* Eyes */}
+            {/* Eyes - Keeping them simple black spheres */}
             <mesh position={[0.12, 0.2, 0.25]}>
                 <sphereGeometry args={[0.08, 16, 16]} />
                 <meshBasicMaterial color="black" />
@@ -300,7 +347,7 @@ export function ChristmasScene() {
                     {/* Presents around tree */}
                     <SimplePresent position={[1, 0, 0.5]} color="red" />
                     <SimplePresent position={[-1, 0, 1]} color="blue" />
-                    <SimplePresent position={[0.5, 0, -1]} color="purple" />
+                    <SimplePresent position={[0.5, 0, -1]} color="white" ribbonColor="#2196f3" />
 
                     {/* Houses */}
                     <House position={[-4, 0, 4]} rotation={[0, Math.PI / 4, 0]} color="#ef5350" />

@@ -10,6 +10,21 @@
   }
 }
 
+@font-face {
+  font-family: "PolySans";
+  src:
+    url("../fonts/PolySans-Neutral.otf") format("opentype"),
+    url("../fonts/PolySans-Slim.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@theme {
+  --font-sans:
+    "PolySans", "Inter", "Geist", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
 /* cool Bun background animation 😎 */
 body::before {
   content: "";
@@ -28,6 +43,7 @@ body::before {
   from {
     background-position: 0 0;
   }
+
   to {
     background-position: 256px 224px;
   }
@@ -37,12 +53,14 @@ body::before {
   from {
     transform: rotate(0);
   }
+
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion) {
+
   *,
   ::before,
   ::after {
