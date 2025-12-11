@@ -6,7 +6,9 @@ export function App() {
   return (
     <>
       <ChristmasScene />
-
+      <div className="pointer-events-none fixed z-0 w-screen h-screen  flex justify-center items-center">
+        hi
+      </div>
     </>
   );
 }

@@ -1,5 +1,5 @@
 
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Cloud, Sparkles, Float, Environment, Text3D } from '@react-three/drei';
 import * as THREE from 'three';
 import { useMemo, useRef, useState } from 'react';
@@ -34,12 +34,13 @@ function Snow({ count = 1000 }) {
         const array = positionAttribute.array as Float32Array;
 
         for (let i = 0; i < count; i++) {
-            // Use non-null assertion or check bounds if stricter safety needed, 
-            // but here we know count matches array size.
             let y = array[i * 3 + 1];
+            if (y === undefined) continue;
 
+            let speed = speeds[i];
+            if (speed === undefined) speed = 0.05;
             // Update Y
-            y -= speeds[i];
+            y -= speed;
             if (y < 0) {
                 y = 20;
             }
@@ -52,33 +53,35 @@ function Snow({ count = 1000 }) {
     return (
         <points ref={ref}>
             <bufferGeometry>
-                <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+                <bufferAttribute attach="attributes-position" args={[positions, 3]} />
             </bufferGeometry>
             <pointsMaterial size={0.15} color="white" transparent opacity={0.8} />
         </points>
     );
 }
 
+import { RoundedBox } from '@react-three/drei';
+
 function Tree({ position, scale = 1 }: { position: [number, number, number], scale?: number }) {
     return (
         <group position={position} scale={scale}>
-            {/* Trunk */}
+            {/* Trunk - Rounded Cylinder via Capsule or just Cylinder */}
             <mesh position={[0, 0.5, 0]} castShadow>
-                <cylinderGeometry args={[0.2, 0.4, 1, 8]} />
-                <meshStandardMaterial color="#3e2723" roughness={0.8} />
+                <cylinderGeometry args={[0.2, 0.25, 1, 16]} />
+                <meshStandardMaterial color="#5d4037" roughness={0.8} />
             </mesh>
-            {/* Leaves */}
-            <mesh position={[0, 1.5, 0]} castShadow>
-                <coneGeometry args={[1.2, 2, 8]} />
-                <meshStandardMaterial color="#1b5e20" roughness={0.5} />
+            {/* Leaves - Puffy Spheres */}
+            <mesh position={[0, 1.2, 0]} castShadow>
+                <sphereGeometry args={[1, 32, 32]} />
+                <meshStandardMaterial color="#4caf50" roughness={0.6} />
             </mesh>
-            <mesh position={[0, 2.5, 0]} castShadow>
-                <coneGeometry args={[0.9, 1.8, 8]} />
-                <meshStandardMaterial color="#2e7d32" roughness={0.5} />
+            <mesh position={[0, 2.2, 0]} castShadow>
+                <sphereGeometry args={[0.8, 32, 32]} />
+                <meshStandardMaterial color="#66bb6a" roughness={0.6} />
             </mesh>
-            <mesh position={[0, 3.4, 0]} castShadow>
-                <coneGeometry args={[0.6, 1.5, 8]} />
-                <meshStandardMaterial color="#4caf50" roughness={0.5} />
+            <mesh position={[0, 3.0, 0]} castShadow>
+                <sphereGeometry args={[0.6, 32, 32]} />
+                <meshStandardMaterial color="#81c784" roughness={0.6} />
             </mesh>
         </group>
     );
@@ -87,33 +90,37 @@ function Tree({ position, scale = 1 }: { position: [number, number, number], sca
 function House({ position, rotation = [0, 0, 0], color = "#e57373" }: { position: [number, number, number], rotation?: [number, number, number], color?: string }) {
     return (
         <group position={position} rotation={rotation}>
-            {/* Base */}
-            <mesh position={[0, 1, 0]} castShadow receiveShadow>
-                <boxGeometry args={[2, 2, 2]} />
-                <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Roof */}
-            <mesh position={[0, 2.5, 0]} rotation={[0, Math.PI / 4, 0]}>
-                <coneGeometry args={[2, 1.5, 4]} />
+            {/* Base - Rounded Box */}
+            <group position={[0, 1, 0]}>
+                <RoundedBox args={[2, 2, 2]} radius={0.2} smoothness={4} castShadow receiveShadow>
+                    <meshStandardMaterial color={color} />
+                </RoundedBox>
+            </group>
+
+            {/* Roof - Puffy Mushroom Style */}
+            <mesh position={[0, 2.1, 0]} scale={[1.4, 0.8, 1.4]} castShadow>
+                <sphereGeometry args={[1.2, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
                 <meshStandardMaterial color="#b71c1c" />
             </mesh>
-            {/* Door */}
-            <mesh position={[0, 0.6, 1.01]}>
-                <planeGeometry args={[0.6, 1.2]} />
+
+            {/* Door - Rounded Plate */}
+            <mesh position={[0, 0.6, 1.05]}>
+                <boxGeometry args={[0.6, 1.2, 0.1]} /> {/* Using simple box but could be rounded plane if needed, small scale detail */}
                 <meshStandardMaterial color="#3e2723" />
             </mesh>
-            {/* Window */}
-            <mesh position={[0.5, 1.5, 1.01]}>
-                <planeGeometry args={[0.5, 0.5]} />
-                <meshStandardMaterial color="yellow" emissive="yellow" emissiveIntensity={0.5} />
+
+            {/* Windows - Circles */}
+            <mesh position={[0.5, 1.5, 1.05]} rotation={[0, 0, 0]}>
+                <circleGeometry args={[0.25, 32]} />
+                <meshStandardMaterial color="#fff176" emissive="#fff176" emissiveIntensity={0.5} />
             </mesh>
-            <mesh position={[-0.5, 1.5, 1.01]}>
-                <planeGeometry args={[0.5, 0.5]} />
-                <meshStandardMaterial color="yellow" emissive="yellow" emissiveIntensity={0.5} />
+            <mesh position={[-0.5, 1.5, 1.05]} rotation={[0, 0, 0]}>
+                <circleGeometry args={[0.25, 32]} />
+                <meshStandardMaterial color="#fff176" emissive="#fff176" emissiveIntensity={0.5} />
             </mesh>
+
             {/* Chimney smoke */}
-            {/* Cloud from drei usually takes arguments, adjusting just in case of version mismatch */}
-            <Cloud position={[0.8, 3.5, 0]} opacity={0.3} speed={0.2} color="#eeeeee" />
+            <Cloud position={[0.8, 3, 0]} opacity={0.3} speed={0.2} color="#eeeeee" bounds={[1, 1, 1]} segments={10} volume={2} />
         </group>
     );
 }
@@ -121,17 +128,19 @@ function House({ position, rotation = [0, 0, 0], color = "#e57373" }: { position
 function SimplePresent({ position, color }: { position: [number, number, number], color: string }) {
     return (
         <group position={position}>
+            <group position={[0, 0.25, 0]}>
+                <RoundedBox args={[0.5, 0.5, 0.5]} radius={0.1} smoothness={4} castShadow>
+                    <meshStandardMaterial color={color} />
+                </RoundedBox>
+            </group>
+            {/* Ribbons */}
             <mesh position={[0, 0.25, 0]}>
-                <boxGeometry args={[0.5, 0.5, 0.5]} />
-                <meshStandardMaterial color={color} />
+                <boxGeometry args={[0.52, 0.1, 0.52]} />
+                <meshStandardMaterial color="#ffd700" />
             </mesh>
             <mesh position={[0, 0.25, 0]}>
-                <boxGeometry args={[0.51, 0.1, 0.51]} />
-                <meshStandardMaterial color="gold" />
-            </mesh>
-            <mesh position={[0, 0.25, 0]}>
-                <boxGeometry args={[0.1, 0.51, 0.51]} />
-                <meshStandardMaterial color="gold" />
+                <boxGeometry args={[0.1, 0.52, 0.52]} />
+                <meshStandardMaterial color="#ffd700" />
             </mesh>
         </group>
     )
@@ -205,6 +214,71 @@ function MouseLight() {
     )
 }
 
+function Ghost() {
+    const group = useRef<THREE.Group>(null!);
+    const [target] = useState(() => new THREE.Vector3(
+        (Math.random() - 0.5) * 15,
+        1 + Math.random() * 2,
+        (Math.random() - 0.5) * 15
+    ));
+
+    useFrame((state, delta) => {
+        if (!group.current) return;
+
+        // Move towards target
+        const currentPos = group.current.position;
+        const dir = new THREE.Vector3().subVectors(target, currentPos);
+
+        if (dir.length() < 0.5) {
+            // Pick new random target
+            target.set(
+                (Math.random() - 0.5) * 15,
+                1 + Math.random() * 2,
+                (Math.random() - 0.5) * 15
+            );
+        }
+
+        dir.normalize().multiplyScalar(delta * 2); // Speed
+        group.current.position.add(dir);
+
+        // Look at target
+        group.current.lookAt(target);
+
+        // Floatiness (sine wave on Y)
+        group.current.position.y += Math.sin(state.clock.elapsedTime * 2 + currentPos.x) * 0.005;
+    });
+
+    return (
+        <group ref={group}>
+            {/* Body */}
+            <mesh position={[0, 0, 0]} castShadow>
+                <capsuleGeometry args={[0.3, 0.8, 4, 8]} />
+                <meshStandardMaterial color="#b3e5fc" transparent opacity={0.6} roughness={0.1} metalness={0.1} />
+            </mesh>
+
+            {/* Eyes */}
+            <mesh position={[0.12, 0.2, 0.25]}>
+                <sphereGeometry args={[0.08, 16, 16]} />
+                <meshBasicMaterial color="black" />
+            </mesh>
+            <mesh position={[-0.12, 0.2, 0.25]}>
+                <sphereGeometry args={[0.08, 16, 16]} />
+                <meshBasicMaterial color="black" />
+            </mesh>
+        </group>
+    )
+}
+
+function Ghosts({ count = 5 }) {
+    return (
+        <>
+            {Array.from({ length: count }).map((_, i) => (
+                <Ghost key={i} />
+            ))}
+        </>
+    )
+}
+
 export function ChristmasScene() {
     return (
         <div className="fixed inset-0 z-0 w-full h-full bg-[#050a14]">
@@ -212,6 +286,7 @@ export function ChristmasScene() {
                 <fog attach="fog" args={['#050a14', 10, 40]} />
                 <SceneLights />
                 <MouseLight />
+                <Ghosts count={8} />
 
                 <group position={[0, -1, 0]}>
                     <Ground />
